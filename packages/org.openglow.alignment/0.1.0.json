@@ -1,0 +1,21 @@
+{
+ "api": "0.1",
+ "author": "OpenGlow",
+ "capabilities": [
+  "ui",
+  "machine.read",
+  "camera.head",
+  "motion.jog",
+  "settings.own",
+  "motion.job"
+ ],
+ "description": "The head camera's view with a crosshair and a jog pad beside it, and the beam moved to where the crosshair was, for LightBurn's Start From: Current Position.",
+ "homepage": "https://docs.forgefirm.org/usage/extensions/alignment/",
+ "id": "org.openglow.alignment",
+ "license": "MIT",
+ "name": "Visual alignment",
+ "sha256": "bbe4115050ccf42a75ccc684ee72ef1a3fdcf288057829f31d43ba1ad119ffae",
+ "size": 8685,
+ "url": "https://github.com/openglow-org/forgefirm-extension-alignment/releases/download/v0.1.0/org.openglow.alignment-0.1.0.ffx",
+ "version": "0.1.0"
+}
