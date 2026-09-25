@@ -1,0 +1,6 @@
+# The forgeext revision of every firmware release whose machines this
+# catalog serves, newest first. The check builds the extension host of each
+# one and holds every index to being kept by all of them; the first one's
+# tools/ffx builds the index. A release that carries a new forgeext adds its
+# revision at the top; a revision leaves when no supported release carries it.
+extensions

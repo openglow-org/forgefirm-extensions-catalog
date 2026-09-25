@@ -1,0 +1,94 @@
+# Copyright 2026 514 LLC d/b/a OpenGlow
+# Written by Scott Wiederhold
+# SPDX-License-Identifier:    MIT
+
+# The catalog's check (tools/check.py), with the extension host of every
+# supported firmware release (hosts), on each pull request and push. On a push
+# to main, after the check, the publish job signs the index with the OpenGlow
+# extension key and publishes it (tools/publish.py). The key is the secret
+# FORGEFIRM_EXT_KEY of the extension-signing environment, whose deployment
+# branches are main alone: no pull request and no other branch receives it.
+
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libjansson-dev libarchive-dev libsodium-dev
+      - name: fwup 1.16.0 (the version the image carries)
+        run: |
+          curl -fsSL -o /tmp/fwup.deb https://github.com/fwup-home/fwup/releases/download/v1.16.0/fwup_1.16.0_amd64.deb
+          sudo dpkg -i /tmp/fwup.deb
+      - name: The extension host of every supported firmware release
+        run: sh tools/hosts.sh "$RUNNER_TEMP/hosts"
+      - name: check_test and publish_test (the tools held to what they promise, on throwaway catalogs)
+        run: |
+          export FORGEEXT="$RUNNER_TEMP/hosts/host-0/build/forgeext" FFX="$(cat "$RUNNER_TEMP/hosts/ffx")"
+          python3 -B tests/check_test.py
+          python3 -B tests/publish_test.py
+      - name: The archives fetched before, by SHA-256
+        uses: actions/cache@v4
+        with:
+          path: .archives
+          key: archives-${{ hashFiles('packages/**/*.json') }}
+          restore-keys: archives-
+      - name: Check
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          NO_FETCH: ${{ github.event_name == 'push' && '--no-fetch' || '' }}
+        run: |
+          base="$BASE"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base=$(git hash-object -t tree /dev/null)
+          fi
+          python3 tools/check.py --base "$base" --ffx "$(cat "$RUNNER_TEMP/hosts/ffx")" \
+            $(cat "$RUNNER_TEMP/hosts/hostargs") --archives .archives $NO_FETCH
+
+  publish:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: extension-signing
+    permissions:
+      contents: write
+    concurrency:
+      group: publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libjansson-dev libarchive-dev libsodium-dev
+      - name: fwup 1.16.0 (the version the image carries)
+        run: |
+          curl -fsSL -o /tmp/fwup.deb https://github.com/fwup-home/fwup/releases/download/v1.16.0/fwup_1.16.0_amd64.deb
+          sudo dpkg -i /tmp/fwup.deb
+      - name: The extension host of every supported firmware release
+        run: sh tools/hosts.sh "$RUNNER_TEMP/hosts"
+      - name: Sign and publish the index, when it changed
+        env:
+          EXT_KEY: ${{ secrets.FORGEFIRM_EXT_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -n "$EXT_KEY" ] || { echo "the extension-signing environment holds no FORGEFIRM_EXT_KEY"; exit 1; }
+          umask 077
+          key="$RUNNER_TEMP/forgefirm-ext.priv"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$EXT_KEY" > "$key"
+          python3 tools/publish.py --ffx "$(cat "$RUNNER_TEMP/hosts/ffx")" $(cat "$RUNNER_TEMP/hosts/hostargs") --key "$key"
