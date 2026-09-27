@@ -1,0 +1,22 @@
+{
+ "api": "0.1",
+ "author": "OpenGlow",
+ "capabilities": [
+  "ui",
+  "machine.read",
+  "camera.head",
+  "motion.jog",
+  "settings.own",
+  "motion.job",
+  "sender.keep_out"
+ ],
+ "description": "The head camera's video with a crosshair on the spot where the laser will land, and the laser moved onto it when you are done, for a job started from the current position.",
+ "homepage": "https://docs.forgefirm.org/usage/extensions/alignment/",
+ "id": "org.openglow.alignment",
+ "license": "MIT",
+ "name": "Visual alignment",
+ "sha256": "31818d9d536a82ca9e73d22a764de7e23d1b2372b85dd4d2a2f3fd089ab08ce1",
+ "size": 18782,
+ "url": "https://github.com/openglow-org/forgefirm-extension-alignment/releases/download/v0.2.0/org.openglow.alignment-0.2.0.ffx",
+ "version": "0.2.0"
+}
