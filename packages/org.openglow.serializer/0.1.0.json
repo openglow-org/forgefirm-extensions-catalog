@@ -1,0 +1,22 @@
+{
+ "api": "0.1",
+ "author": "OpenGlow",
+ "capabilities": [
+  "ui",
+  "machine.read",
+  "events",
+  "motion.job",
+  "sender.keep_out",
+  "job_time.run",
+  "storage:16"
+ ],
+ "description": "Serial numbers, dates, and text marked on one item or a grid of them, cycle after cycle: close the lid, press the button, and the next numbers go out.",
+ "homepage": "https://docs.forgefirm.org/usage/extensions/serializer/",
+ "id": "org.openglow.serializer",
+ "license": "MIT",
+ "name": "Serializer",
+ "sha256": "c36f538cfe3dc8f4ccac38ef005e600d9b81adce81cd8ef0deb4797b04293b12",
+ "size": 1183938,
+ "url": "https://github.com/openglow-org/forgefirm-extension-serializer/releases/download/v0.1.0/org.openglow.serializer-0.1.0.ffx",
+ "version": "0.1.0"
+}
