@@ -8,6 +8,9 @@
 # extension key and publishes it (tools/publish.py). The key is the secret
 # FORGEFIRM_EXT_KEY of the extension-signing environment, whose deployment
 # branches are main alone: no pull request and no other branch receives it.
+# Beside the check, the firmware job compares the catalog with what forgefirm's
+# default branch expects of it: the extension key, and the address of the
+# index.
 
 name: check
 
@@ -58,6 +61,93 @@ jobs:
           fi
           python3 tools/check.py --base "$base" --ffx "$(cat "$RUNNER_TEMP/hosts/ffx")" \
             $(cat "$RUNNER_TEMP/hosts/hostargs") --archives .archives $NO_FETCH
+
+  firmware:
+    # What the firmware expects of this catalog, on forgefirm's default
+    # branch: the extension key the image installs is keys/forgefirm-ext.pub,
+    # and the address the pinned forgectrl fetches is this catalog's
+    # latest-release download of the file tools/publish.py uploads. The same
+    # two comparisons as forgefirm's forgetest-ci, run here so a change on
+    # this side is caught where it is made. The address is read, never
+    # requested: every request of it is counted as a download.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: catalog
+      - name: Checkout forgefirm (master)
+        uses: actions/checkout@v4
+        with:
+          repository: openglow-org/forgefirm
+          ref: master
+          path: forgefirm
+      - name: forgectrl's pin
+        id: pin
+        run: |
+          rev=$(sed -n 's/^SRCREV = "\([0-9a-f]\{40\}\)"$/\1/p' forgefirm/meta-forgefirm/recipes-forgefirm/forgectrl/forgectrl-pin.inc)
+          [ -n "$rev" ] || { echo "forgectrl-pin.inc names no SRCREV"; exit 1; }
+          echo "forgectrl $rev"
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+      - name: Checkout forgectrl at its pin
+        uses: actions/checkout@v4
+        with:
+          repository: openglow-org/forgectrl
+          ref: ${{ steps.pin.outputs.rev }}
+          path: forgectrl
+          fetch-depth: 1
+      - name: The image's extension key is this catalog's published key
+        run: |
+          published=catalog/keys/forgefirm-ext.pub
+          image=forgefirm/meta-forgefirm/recipes-forgefirm/forgefirm-keys/files/ext/forgefirm-ext.pub
+          for f in "$published" "$image"; do
+            test -f "$f" || { echo "missing: $f"; exit 1; }
+          done
+          cmp -s "$published" "$image" || { echo "$image is not $published"; exit 1; }
+      - name: The address in the pinned forgectrl is the file this catalog publishes (read, never requested)
+        run: |
+          python3 - <<'EOF'
+          import ast, os, re, sys
+
+          PREFIX = "https://github.com/openglow-org/forgefirm-extensions-catalog/releases/latest/download/"
+
+          def fail(why):
+              print(why)
+              sys.exit(1)
+
+          # the pinned forgectrl's src/extpkg.h
+          try:
+              header = open("forgectrl/src/extpkg.h").read()
+          except OSError as e:
+              fail("the pinned forgectrl has no src/extpkg.h: %s" % e)
+          m = re.search(r'#define\s+EXTPKG_INDEX_URL\s*(?:\\\n\s*)?"([^"]*)"', header)
+          if not m:
+              fail("the pinned forgectrl's src/extpkg.h defines no EXTPKG_INDEX_URL")
+          url = m.group(1)
+
+          # the file this catalog's publish tool passes to gh release create
+          tree = ast.parse(open("catalog/tools/publish.py").read())
+          assigned = {n.targets[0].id: n.value for n in ast.walk(tree)
+                      if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name)}
+
+          def file_name(v):
+              if isinstance(v, ast.Name):
+                  v = assigned.get(v.id)
+              if isinstance(v, ast.Call) and v.args:
+                  v = v.args[-1]
+              return os.path.basename(v.value) if isinstance(v, ast.Constant) and isinstance(v.value, str) else None
+
+          names = [file_name(n.args[3]) if len(n.args) > 3 else None for n in ast.walk(tree)
+                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "gh"
+                   and [a.value for a in n.args[:2] if isinstance(a, ast.Constant)] == ["release", "create"]]
+          if len(names) != 1 or not names[0]:
+              fail("tools/publish.py passes no one file to gh release create: %s" % names)
+
+          print("the pinned forgectrl: %s; this catalog publishes %s" % (url, names[0]))
+          if url != PREFIX + names[0]:
+              fail("the address is not %s" % (PREFIX + names[0]))
+          EOF
 
   publish:
     needs: check
