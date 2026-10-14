@@ -3,14 +3,14 @@
 # SPDX-License-Identifier:    MIT
 
 # The catalog's check (tools/check.py), with the extension host of every
-# supported firmware release (hosts), on each pull request and push. On a push
-# to main, after the check, the publish job signs the index with the OpenGlow
-# extension key and publishes it (tools/publish.py). The key is the secret
-# FORGEFIRM_EXT_KEY of the extension-signing environment, whose deployment
-# branches are main alone: no pull request and no other branch receives it.
-# Beside the check, the firmware job compares the catalog with what forgefirm's
-# default branch expects of it: the extension key, and the address of the
-# index.
+# supported firmware release (hosts), on each pull request and push. Beside the
+# check, the firmware job compares the catalog with what forgefirm's default
+# branch expects of it: the extension key, and the address of the index. On a
+# push to main, once both have passed, the publish job signs the index with the
+# OpenGlow extension key and publishes it (tools/publish.py). The key is the
+# secret FORGEFIRM_EXT_KEY of the extension-signing environment, whose
+# deployment branches are main alone: no pull request and no other branch
+# receives it.
 
 name: check
 
@@ -150,7 +150,7 @@ jobs:
           EOF
 
   publish:
-    needs: check
+    needs: [check, firmware]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: extension-signing
